@@ -1,0 +1,72 @@
+<atlassian-plugin key="${atlassian.plugin.key}" name="${project.name}"
+	plugins-version="2">
+	<plugin-info>
+		<description>${project.description}</description>
+		<version>${project.version}</version>
+		<vendor name="${project.organization.name}" url="${project.organization.url}" />
+		<param name="plugin-icon">images/pluginIcon.png</param>
+		<param name="plugin-logo">images/pluginLogo.png</param>
+	</plugin-info>
+
+	<taskType name="Prometheus exporter"
+		class="atlas.plugin.promexporter.bambootask.PrometheusTask" key="test">
+		<description>Prometheus test duration exporter </description>
+		<configuration
+			class="atlas.plugin.promexporter.bambootask.PrometheusTaskConfigurator" />
+		<resource type="freemarker" name="edit" location="prometheusTask.ftl" />
+	</taskType>
+
+	<buildProcessorServer key="buildProcessorServerExport"
+		name="Build Processor Server" class="atlas.plugin.promexporter.service.BuildProcessorServerExport">
+		<skipIfFailed>true</skipIfFailed>
+	</buildProcessorServer>
+
+	<!-- Servlets -->
+	<servlet name="Exporter Servlet" key="bamboo-test-export"
+		class="io.prometheus.client.exporter.MetricsServlet">
+		<url-pattern>/metrics/export</url-pattern>
+	</servlet>
+
+	<servlet name="Remove Metrics Servlet" key="bamboo-remove-metrics"
+		class="atlas.plugin.promexporter.servlet.RemoveMetricsServlet">
+		<url-pattern>/metrics/remove</url-pattern>
+	</servlet>
+
+	<servlet name="Get Metrics Servlet" key="bamboo-get-metrics"
+		class="atlas.plugin.promexporter.servlet.MetricsServlet">
+		<url-pattern>/metrics/get</url-pattern>
+	</servlet>
+
+	<resource type="download" name="bootstrap/" location="bootstrap/" />
+
+	<web-item name="Prometheus settings" key="prom-bamboo-exporter-configuration"
+		section="system.admin/plugins" weight="100">
+		<label key="Prometheus settings" />
+		<description key="atlas.plugin.promexporter.settings.section.desc" />
+		<link linkId="prom-bamboo-exporter-configuration">/admin/prommetrics/settings.action</link>
+	</web-item>
+	
+	<web-item name="Table with time of passing tests" key="prom-bamboo-duration-tests"
+		section="system.admin/plugins" weight="100">
+		<label key="Table with time of passing tests" />
+		<description key="atlas.plugin.promexporter.settings.section.desc" />
+		<link linkId="prom-bamboo-duration-tests">/plugins/servlet//metrics/remove</link>
+	</web-item>
+
+	<!-- Actions -->
+	<xwork name="Prometheus settings" key="prom-bamboo-exporter-actions">
+		<package name="prom-bamboo-exporter-action-admin" extends="admin"
+			namespace="/admin/prommetrics">
+			<action name="settings"
+				class="atlas.plugin.promexporter.manager.PromAdminAction" method="input">
+				<result name="input" type="freemarker">/settings.ftl</result>
+				<result name="error" type="freemarker">/settings.ftl</result>
+			</action>
+			<action name="savesettings"
+				class="atlas.plugin.promexporter.manager.PromAdminAction">
+				<result name="error" type="freemarker">/settings.ftl</result>
+				<result name="success" type="freemarker">/settings.ftl</result>
+			</action>
+		</package>
+	</xwork>
+</atlassian-plugin>
