@@ -27,17 +27,10 @@
 		<url-pattern>/metrics/export</url-pattern>
 	</servlet>
 
-	<servlet name="Remove Metrics Servlet" key="bamboo-remove-metrics"
-		class="atlas.plugin.promexporter.servlet.RemoveMetricsServlet">
-		<url-pattern>/metrics/remove</url-pattern>
-	</servlet>
-
 	<servlet name="Get Metrics Servlet" key="bamboo-get-metrics"
 		class="atlas.plugin.promexporter.servlet.MetricsServlet">
-		<url-pattern>/metrics/get</url-pattern>
+		<url-pattern>/metrics</url-pattern>
 	</servlet>
-
-	<resource type="download" name="bootstrap/" location="bootstrap/" />
 
 	<web-item name="Prometheus settings" key="prom-bamboo-exporter-configuration"
 		section="system.admin/plugins" weight="100">
@@ -46,13 +39,6 @@
 		<link linkId="prom-bamboo-exporter-configuration">/admin/prommetrics/settings.action</link>
 	</web-item>
 	
-	<web-item name="Table with time of passing tests" key="prom-bamboo-duration-tests"
-		section="system.admin/plugins" weight="100">
-		<label key="Table with time of passing tests" />
-		<description key="atlas.plugin.promexporter.settings.section.desc" />
-		<link linkId="prom-bamboo-duration-tests">/plugins/servlet//metrics/remove</link>
-	</web-item>
-
 	<!-- Actions -->
 	<xwork name="Prometheus settings" key="prom-bamboo-exporter-actions">
 		<package name="prom-bamboo-exporter-action-admin" extends="admin"

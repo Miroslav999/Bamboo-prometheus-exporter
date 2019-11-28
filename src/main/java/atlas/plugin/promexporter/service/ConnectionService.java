@@ -11,7 +11,6 @@ import org.slf4j.LoggerFactory;
 
 import atlas.plugin.promexporter.manager.PromSettingsManager;
 import atlas.plugin.promexporter.metric.Parameter;
-import atlas.plugin.promexporter.servlet.RemoveMetricsServlet;
 
 public class ConnectionService {
 
@@ -23,7 +22,7 @@ public class ConnectionService {
     
 
     private static final Logger LOGGER = LoggerFactory
-            .getLogger(RemoveMetricsServlet.class);
+            .getLogger(ConnectionService.class);
 
     public ConnectionService(PromSettingsManager promSettingsManager) {
         this.promSettingsManager = promSettingsManager;
