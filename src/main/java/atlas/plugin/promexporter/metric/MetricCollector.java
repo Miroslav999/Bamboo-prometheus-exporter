@@ -1,6 +1,5 @@
 package atlas.plugin.promexporter.metric;
 
-
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -10,13 +9,18 @@ import org.springframework.stereotype.Component;
 
 import io.prometheus.client.Collector.MetricFamilySamples;
 import io.prometheus.client.Collector.MetricFamilySamples.Sample;
+import io.prometheus.client.Counter;
 import io.prometheus.client.Gauge;
+import io.prometheus.client.SimpleCollector;
 
 @Component
 public class MetricCollector {
 
     public static final String METRIC_NAME = "duration_test";
     public static final String METRIC_DESCRIPTION = "Duration test";
+    
+    public static final String FAILED_TESTS_METRIC_NAME = "fallen_test";
+    public static final String FAILED_TESTS_METRIC_DESCRIPTION = "Fallen test";
 
     private static final List<String> metricsList = Arrays.asList(
             Parameter.CLASS_NAME.getLabelName(),
@@ -30,13 +34,26 @@ public class MetricCollector {
             .help(METRIC_DESCRIPTION)
             .labelNames(metricsList.toArray(new String[metricsList.size()]))
             .register();
+    
+    // XXX FAILED_TESTS
+    public static final Counter FAILED_TESTS = Counter.build().name(FAILED_TESTS_METRIC_NAME)
+            .help(FAILED_TESTS_METRIC_DESCRIPTION)
+            .labelNames( Parameter.CLASS_NAME.getLabelName(),
+                    Parameter.TEST_NAME.getLabelName(),
+                    Parameter.TEST_TYPE.getLabelName(),
+                    Parameter.BRANCH.getLabelName(),
+                    Parameter.JOB.getLabelName(),
+                    Parameter.PLAN.getLabelName(),
+                    "Error")
+            .register();
 
-    public void removeByLabels(Map<Parameter, String> parameters) {
 
-        List<MetricFamilySamples> metrics = Arrays.asList(DURATION_TESTS
+    public void removeByLabels(@SuppressWarnings("rawtypes") SimpleCollector collector, Map<Parameter, String> parameters) {
+
+        List<MetricFamilySamples> metrics = Arrays.asList(collector
                 .collect().get(0));
 
-         DURATION_TESTS.clear();
+        collector.clear();
         
         List<Sample> listSamples = metrics.get(0)
                 .samples
@@ -45,16 +62,21 @@ public class MetricCollector {
                 .collect(Collectors.toList());
 
         listSamples.forEach(sample -> {
-                setLabels(sample);
+                setLabels(collector, sample);
         });
     }
 
-    private void setLabels(Sample sample) {
+    private void setLabels(@SuppressWarnings("rawtypes") SimpleCollector collector, Sample sample) {
 
         String[] labels = sample.labelValues
                 .toArray(new String[sample.labelValues.size()]);
 
-        DURATION_TESTS.labels(labels).set(sample.value);
+        if (collector instanceof Counter){
+            ((Counter.Child) collector.labels(labels)).inc(sample.value);
+        }
+        if (collector instanceof Gauge){
+            ((Gauge.Child) collector.labels(labels)).set(sample.value);
+        }
     }
 
     public boolean isLabelMatches(Sample sample,
@@ -89,4 +111,5 @@ public class MetricCollector {
                 
         MetricCollector.DURATION_TESTS.labels(labels).set(value);
     }
+ 
 }

@@ -109,7 +109,7 @@ public class MetricsServlet extends MainHttpServlet {
             statusCode = connectionService.removeMetricsFromPrometheus(labels);
             
             if (statusCode == ConnectionService.STATUS_OK){
-                metricCollector.removeByLabels(labels);
+                metricCollector.removeByLabels(MetricCollector.DURATION_TESTS, labels);
 
             }; 
         }

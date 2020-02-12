@@ -1,6 +1,7 @@
 package atlas.plugin.promexporter.service;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -72,12 +73,7 @@ public class BuildProcessorServerExport implements CustomBuildProcessorServer {
         Set<String> branches = new HashSet<>(Arrays.asList(configs.get(
                 PrometheusTask.BRANCHES_KEY).split(DELIMETER)));
 
-        String currentBranch = Optional
-                .ofNullable(buildContext.getBuildResult())
-                .map(d -> d.getCustomBuildData())
-                .map(e -> e.get("planRepository.1.branch"))
-                .orElseThrow(
-                        () -> new RuntimeException("Current branch not found"));
+        String currentBranch = getCurrentBranch();
 
         String testType = configs.get(PrometheusTask.KEY_TEST_TYPE);
 
@@ -91,14 +87,26 @@ public class BuildProcessorServerExport implements CustomBuildProcessorServer {
 
         if (MASTER_BRANCH.equals(currentBranch)
                 || branches.contains(currentBranch)) {
-            for (TestResults result : buildContext.getBuildResult()
-                    .getSuccessfulTestResults()) {
-                setDuration(result, currentBranch, task, testType,
-                        requiredPlanName, border);
-            }
+
+            collectStatisticsFromSuccessfulTests(buildContext.getBuildResult()
+                    .getSuccessfulTestResults(), currentBranch, testType,
+                    requiredPlanName, border);
+
+            collectStatisticsFromFailedTest(buildContext.getBuildResult().getFailedTestResults(), currentBranch,
+                    testType, requiredPlanName);
+
         }
 
         return buildContext;
+    }
+
+    public String getCurrentBranch() {
+        return Optional
+                .ofNullable(buildContext.getBuildResult())
+                .map(d -> d.getCustomBuildData())
+                .map(e -> e.get("planRepository.1.branch"))
+                .orElseThrow(
+                        () -> new RuntimeException("Current branch not found"));
     }
 
     @Override
@@ -148,43 +156,55 @@ public class BuildProcessorServerExport implements CustomBuildProcessorServer {
         }
     }
 
-    private void setDuration(TestResults res, String currentBranch,
-            TaskResult taskResult, String testType, String planName, int border) {
+    private void collectStatisticsFromSuccessfulTests(Collection<TestResults> testResults,
+            String currentBranch, String testType, String planName, int border) {
 
-        String className = Optional.ofNullable(
-                getClassName(res.getActualMethodName())).orElse(
-                "UnknownClassName");
+        for (TestResults testResult : testResults){
+            
+            String className = Optional.ofNullable(
+                    getClassName(testResult.getActualMethodName())).orElse(
+                    "UnknownClassName");
 
-        String testName = Optional.ofNullable(
-                getTestName(res.getActualMethodName())).orElse(
-                "UnknownTestName");
+            String testName = Optional.ofNullable(
+                    getTestName(testResult.getActualMethodName())).orElse(
+                    "UnknownTestName");
 
-        Long duration = res.getDurationMs() / 1000;
+//            String className = testResult.getClassName();
+//
+//            String testName = testResult.getActualMethodName();
+            
+            Long duration = testResult.getDurationMs() / 1000;
 
-        Map<Parameter, String> marks = genereteMapWithParameters(planName,
-                currentBranch, buildContext.getShortName(), className,
-                testName, testType);
+            Map<Parameter, String> marks = genereteMapWithParameters(planName,
+                    currentBranch, buildContext.getShortName(), className,
+                    testName, testType);
 
-        metricCollector.removeByLabels(marks);
+            metricCollector.removeByLabels(MetricCollector.DURATION_TESTS, marks);
+            
+            //XXX FAILED_TESTS
+            metricCollector.removeByLabels(MetricCollector.FAILED_TESTS, marks);
 
-        if (duration < border) {
-            return;
+
+            if (duration < border) {
+                return;
+            }
+
+            logTestResult(className, testName, testType,
+                    buildContext.getBuildNumber(), buildContext.getShortName(),
+                    planName, currentBranch, duration);
+
+            metricCollector.setLabels(marks, duration);
         }
-
-        logTestResult(className, testName, testType,
-                buildContext.getBuildNumber(), buildContext.getShortName(),
-                planName, currentBranch, duration);
-
-        metricCollector.setLabels(marks, duration);
-
+        
     }
 
     private void logTestResult(String className, String testName,
             String testType, int buildNumber, String jobName, String planName,
             String currentBranch, long duration) {
 
-       String metric = Stream.of(className, testName, testType, buildNumber, jobName,
-                planName, currentBranch, String.valueOf(duration))
+        String metric = Stream
+                .of(className, testName, testType, buildNumber, jobName,
+                        planName, currentBranch, String.valueOf(duration))
                 .map(Object::toString).collect(Collectors.joining("-"));
 
         LOGGER.info("Test = " + metric);
@@ -202,5 +222,34 @@ public class BuildProcessorServerExport implements CustomBuildProcessorServer {
         marks.put(Parameter.TEST_NAME, testName);
         marks.put(Parameter.TEST_TYPE, testType);
         return marks;
+    }
+
+  //XXX FAILED_TESTS
+    private void collectStatisticsFromFailedTest(Collection<TestResults> testResults,
+            String currentBranch, String testType, String planName) {
+
+        testResults.forEach(failedTest -> {
+
+            String className = Optional.ofNullable(
+                    getClassName(failedTest.getActualMethodName())).orElse(
+                    "UnknownClassName");
+
+            String testName = Optional.ofNullable(
+                    getTestName(failedTest.getActualMethodName())).orElse(
+                    "UnknownTestName");
+//                String className = failedTest.getClassName();
+//
+//                String testName = failedTest.getActualMethodName();
+                
+                String stack = failedTest.getErrors().get(0).getContent();
+                
+                LOGGER.info("Error Message = " + stack);
+
+                String errorType = stack.substring(0, stack.indexOf(':'));
+
+                MetricCollector.FAILED_TESTS.labels(className, testName,
+                        testType, currentBranch, buildContext.getShortName(),
+                        planName, errorType).inc();
+            });
     }
 }
