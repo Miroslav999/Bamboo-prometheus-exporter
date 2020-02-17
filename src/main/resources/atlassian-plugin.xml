@@ -55,4 +55,7 @@
 			</action>
 		</package>
 	</xwork>
+	
+	 <preJobAction key="RegisterPreJobAction" class="atlas.plugin.promexporter.jobaction.RegisterPreJobAction">
+    </preJobAction>
 </atlassian-plugin>

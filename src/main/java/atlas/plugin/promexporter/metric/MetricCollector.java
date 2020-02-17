@@ -35,6 +35,16 @@ public class MetricCollector {
             .labelNames(metricsList.toArray(new String[metricsList.size()]))
             .register();
     
+    public static final Gauge JOB_START_TIME = Gauge.build().name("job_start_time")
+            .help("Job start time")
+            .labelNames("ProjectName", "PlanName", "JobName")
+            .register();
+    
+    public static final Gauge JOB_END_TIME = Gauge.build().name("job_end_time")
+            .help("Job end time")
+            .labelNames("ProjectName", "PlanName", "JobName")
+            .register();
+    
     // XXX FAILED_TESTS
     public static final Counter FAILED_TESTS = Counter.build().name(FAILED_TESTS_METRIC_NAME)
             .help(FAILED_TESTS_METRIC_DESCRIPTION)

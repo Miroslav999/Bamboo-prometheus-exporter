@@ -46,7 +46,16 @@ public class BuildProcessorServerExport implements CustomBuildProcessorServer {
     @Override
     public BuildContext call() throws InterruptedException, Exception {
         LOGGER.info("Call method call");
-
+        
+        Long ml = System.currentTimeMillis();
+        int endTime = ml.intValue() / 1000;
+        String projectName = buildContext.getProjectName();
+        String planName = buildContext.getPlanName().split("-")[1];
+        String jobName = buildContext.getShortName();
+        String number = String.valueOf(buildContext.getBuildNumber());
+        MetricCollector.JOB_END_TIME.labels(projectName, planName, jobName
+                ).set(endTime);
+        
         TaskResult task = getTaskExporter(buildContext);
 
         if (task == null) {
@@ -73,7 +82,12 @@ public class BuildProcessorServerExport implements CustomBuildProcessorServer {
         Set<String> branches = new HashSet<>(Arrays.asList(configs.get(
                 PrometheusTask.BRANCHES_KEY).split(DELIMETER)));
 
-        String currentBranch = getCurrentBranch();
+        String currentBranch = Optional
+                .ofNullable(buildContext.getBuildResult())
+                .map(d -> d.getCustomBuildData())
+                .map(e -> e.get("planRepository.branch"))
+                .orElseThrow(
+                        () -> new RuntimeException("Current branch not found"));
 
         String testType = configs.get(PrometheusTask.KEY_TEST_TYPE);
 
@@ -98,15 +112,6 @@ public class BuildProcessorServerExport implements CustomBuildProcessorServer {
         }
 
         return buildContext;
-    }
-
-    public String getCurrentBranch() {
-        return Optional
-                .ofNullable(buildContext.getBuildResult())
-                .map(d -> d.getCustomBuildData())
-                .map(e -> e.get("planRepository.1.branch"))
-                .orElseThrow(
-                        () -> new RuntimeException("Current branch not found"));
     }
 
     @Override
@@ -186,7 +191,7 @@ public class BuildProcessorServerExport implements CustomBuildProcessorServer {
 
 
             if (duration < border) {
-                return;
+                continue;
             }
 
             logTestResult(className, testName, testType,
