@@ -18,6 +18,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import atlas.plugin.promexporter.bambootask.PrometheusTask;
+import atlas.plugin.promexporter.bambootask.SetStatisticsCollectionParametersTask;
+import atlas.plugin.promexporter.metric.JobCollector;
 import atlas.plugin.promexporter.metric.MetricCollector;
 import atlas.plugin.promexporter.metric.Parameter;
 
@@ -31,13 +33,17 @@ public class BuildProcessorServerExport implements CustomBuildProcessorServer {
     public static final String MASTER_BRANCH = "master";
     public static final String DELIMETER = ",";
     public static final String PATTERN = "\\(.*?\\)";
-    public static final String TASK_KEY = "prom.atlas.plugins.bamboo-prom-exporter:test";
+    public static final String PROM_TASK_KEY = "prom.atlas.plugins.bamboo-prom-exporter:test";
+    public static final String STAT_COLL_PARAM_TASK_KEY = "prom.atlas.plugins.bamboo-prom-exporter:statisticscollectionparameterstask";
 
     private BuildContext buildContext;
     private MetricCollector metricCollector;
+    private JobCollector jobCollector;
 
-    public BuildProcessorServerExport(MetricCollector metricCollector) {
+    public BuildProcessorServerExport(MetricCollector metricCollector,
+            JobCollector jobCollector) {
         this.metricCollector = metricCollector;
+        this.jobCollector = jobCollector;
     }
 
     private static final Logger LOGGER = LoggerFactory
@@ -45,21 +51,24 @@ public class BuildProcessorServerExport implements CustomBuildProcessorServer {
 
     @Override
     public BuildContext call() throws InterruptedException, Exception {
+
         LOGGER.info("Call method call");
-        
-        Long ml = System.currentTimeMillis();
-        int endTime = ml.intValue() / 1000;
-        String projectName = buildContext.getProjectName();
-        String planName = buildContext.getPlanName().split("-")[1];
-        String jobName = buildContext.getShortName();
-        String number = String.valueOf(buildContext.getBuildNumber());
-        MetricCollector.JOB_END_TIME.labels(projectName, planName, jobName
-                ).set(endTime);
-        
-        TaskResult task = getTaskExporter(buildContext);
+
+        TaskResult statCollParamTask = getTask(buildContext,
+                STAT_COLL_PARAM_TASK_KEY);
+
+        if (statCollParamTask != null) {
+            jobCollector.getJobs().clear();
+            String branch = getConfigMap(buildContext, statCollParamTask).get(
+                    SetStatisticsCollectionParametersTask.BRANCH_KEY);
+            jobCollector.setRequiredBranchName(branch);
+            jobCollector.start();
+            LOGGER.info("JobCollector started: " + jobCollector.toString());
+        }
+
+        TaskResult task = getTask(buildContext, PROM_TASK_KEY);
 
         if (task == null) {
-            LOGGER.info("Task is null");
             return null;
         }
 
@@ -82,12 +91,7 @@ public class BuildProcessorServerExport implements CustomBuildProcessorServer {
         Set<String> branches = new HashSet<>(Arrays.asList(configs.get(
                 PrometheusTask.BRANCHES_KEY).split(DELIMETER)));
 
-        String currentBranch = Optional
-                .ofNullable(buildContext.getBuildResult())
-                .map(d -> d.getCustomBuildData())
-                .map(e -> e.get("planRepository.branch"))
-                .orElseThrow(
-                        () -> new RuntimeException("Current branch not found"));
+        String currentBranch = getCurrentBranch(buildContext);
 
         String testType = configs.get(PrometheusTask.KEY_TEST_TYPE);
 
@@ -106,12 +110,23 @@ public class BuildProcessorServerExport implements CustomBuildProcessorServer {
                     .getSuccessfulTestResults(), currentBranch, testType,
                     requiredPlanName, border);
 
-            collectStatisticsFromFailedTest(buildContext.getBuildResult().getFailedTestResults(), currentBranch,
-                    testType, requiredPlanName);
+            collectStatisticsFromFailedTest(buildContext.getBuildResult()
+                    .getFailedTestResults(), currentBranch, testType,
+                    requiredPlanName);
 
         }
 
         return buildContext;
+    }
+
+    // TODO куда-то метод надо вынести
+    public static String getCurrentBranch(BuildContext buildContext) {
+        return Optional
+                .ofNullable(buildContext.getBuildResult())
+                .map(d -> d.getCustomBuildData())
+                .map(e -> e.get("planRepository.branch"))
+                .orElseThrow(
+                        () -> new RuntimeException("Current branch not found"));
     }
 
     @Override
@@ -131,14 +146,15 @@ public class BuildProcessorServerExport implements CustomBuildProcessorServer {
                 .map(res -> res.getConfiguration()).orElse(null);
     }
 
+    // TODO куда-то метод надо вынести
     @Nullable
-    private TaskResult getTaskExporter(BuildContext buildContext) {
+    public static TaskResult getTask(BuildContext buildContext, String taskKey) {
         return buildContext
                 .getBuildResult()
                 .getTaskResults()
                 .stream()
                 .filter(taskResult -> taskResult.getTaskIdentifier()
-                        .getPluginKey().equals(TASK_KEY)).findFirst()
+                        .getPluginKey().equals(taskKey)).findFirst()
                 .orElse(null);
     }
 
@@ -161,11 +177,12 @@ public class BuildProcessorServerExport implements CustomBuildProcessorServer {
         }
     }
 
-    private void collectStatisticsFromSuccessfulTests(Collection<TestResults> testResults,
-            String currentBranch, String testType, String planName, int border) {
+    private void collectStatisticsFromSuccessfulTests(
+            Collection<TestResults> testResults, String currentBranch,
+            String testType, String planName, int border) {
 
-        for (TestResults testResult : testResults){
-            
+        for (TestResults testResult : testResults) {
+
             String className = Optional.ofNullable(
                     getClassName(testResult.getActualMethodName())).orElse(
                     "UnknownClassName");
@@ -174,21 +191,21 @@ public class BuildProcessorServerExport implements CustomBuildProcessorServer {
                     getTestName(testResult.getActualMethodName())).orElse(
                     "UnknownTestName");
 
-//            String className = testResult.getClassName();
-//
-//            String testName = testResult.getActualMethodName();
-            
+            // String className = testResult.getClassName();
+            //
+            // String testName = testResult.getActualMethodName();
+
             Long duration = testResult.getDurationMs() / 1000;
 
             Map<Parameter, String> marks = genereteMapWithParameters(planName,
                     currentBranch, buildContext.getShortName(), className,
                     testName, testType);
 
-            metricCollector.removeByLabels(MetricCollector.DURATION_TESTS, marks);
-            
-            //XXX FAILED_TESTS
-            metricCollector.removeByLabels(MetricCollector.FAILED_TESTS, marks);
+            metricCollector.removeByLabels(MetricCollector.DURATION_TESTS,
+                    marks);
 
+            // XXX FAILED_TESTS
+            metricCollector.removeByLabels(MetricCollector.FAILED_TESTS, marks);
 
             if (duration < border) {
                 continue;
@@ -200,7 +217,7 @@ public class BuildProcessorServerExport implements CustomBuildProcessorServer {
 
             metricCollector.setLabels(marks, duration);
         }
-        
+
     }
 
     private void logTestResult(String className, String testName,
@@ -229,9 +246,10 @@ public class BuildProcessorServerExport implements CustomBuildProcessorServer {
         return marks;
     }
 
-  //XXX FAILED_TESTS
-    private void collectStatisticsFromFailedTest(Collection<TestResults> testResults,
-            String currentBranch, String testType, String planName) {
+    // XXX FAILED_TESTS
+    private void collectStatisticsFromFailedTest(
+            Collection<TestResults> testResults, String currentBranch,
+            String testType, String planName) {
 
         testResults.forEach(failedTest -> {
 
@@ -242,12 +260,12 @@ public class BuildProcessorServerExport implements CustomBuildProcessorServer {
             String testName = Optional.ofNullable(
                     getTestName(failedTest.getActualMethodName())).orElse(
                     "UnknownTestName");
-//                String className = failedTest.getClassName();
-//
-//                String testName = failedTest.getActualMethodName();
-                
+            // String className = failedTest.getClassName();
+            //
+            // String testName = failedTest.getActualMethodName();
+
                 String stack = failedTest.getErrors().get(0).getContent();
-                
+
                 LOGGER.info("Error Message = " + stack);
 
                 String errorType = stack.substring(0, stack.indexOf(':'));
@@ -257,4 +275,5 @@ public class BuildProcessorServerExport implements CustomBuildProcessorServer {
                         planName, errorType).inc();
             });
     }
+
 }

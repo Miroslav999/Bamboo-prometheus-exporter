@@ -23,7 +23,8 @@ public class PrometheusTask implements TaskType {
 	public TaskResult execute(@NotNull final TaskContext taskContext)
 			throws TaskException {
 
-		LOGGER.info("call method of the task execute()");
+		LOGGER.info("PrometheusTask: call method of the task execute()");
+		
 		return TaskResultBuilder.newBuilder(taskContext).success().build();
 	}
 

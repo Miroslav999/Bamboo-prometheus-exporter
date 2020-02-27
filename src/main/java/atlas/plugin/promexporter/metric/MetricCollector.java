@@ -35,6 +35,16 @@ public class MetricCollector {
             .labelNames(metricsList.toArray(new String[metricsList.size()]))
             .register();
     
+    public static final Gauge JOB_QUEUE_DURATION = Gauge.build().name("job_queue_duration")
+            .help("Job queue duration")
+            .labelNames("ProjectName", "PlanName", "JobName")
+            .register();
+    
+    public static final Gauge JOB_PROCESSING_DURATION = Gauge.build().name("job_processing_duration")
+            .help("Job processing duration")
+            .labelNames("ProjectName", "PlanName", "JobName")
+            .register();
+    
     public static final Gauge JOB_START_TIME = Gauge.build().name("job_start_time")
             .help("Job start time")
             .labelNames("ProjectName", "PlanName", "JobName")
@@ -42,6 +52,11 @@ public class MetricCollector {
     
     public static final Gauge JOB_END_TIME = Gauge.build().name("job_end_time")
             .help("Job end time")
+            .labelNames("ProjectName", "PlanName", "JobName")
+            .register();
+    
+    public static final Gauge TEST_NUMBER = Gauge.build().name("test_number")
+            .help("Test number")
             .labelNames("ProjectName", "PlanName", "JobName")
             .register();
     
