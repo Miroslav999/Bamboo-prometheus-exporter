@@ -64,36 +64,40 @@ public class RegisterPostJobAction implements PostJobAction {
             atlas.plugin.promexporter.metric.Job jobWithStat = jobCollector
                     .getJobs().get(job.getName());
 
+            // if (testResultsSummary.hasFailedTestResults()
+            // || testResultsSummary.hasSuccessfulTestResults()) {
+
+            Long endTime = TimeUnit.MILLISECONDS.toSeconds(System
+                    .currentTimeMillis());
+
+            jobWithStat.setEndTime(endTime);
+
+            Long prDuration = TimeUnit.MILLISECONDS
+                    .toSeconds(buildResultsSummary.getProcessingDuration());
+
+            jobWithStat.setProcessingDuration(prDuration);
+
+            Long qDuration = TimeUnit.MILLISECONDS
+                    .toSeconds(buildResultsSummary.getQueueDuration());
+
+            jobWithStat.setQueueDuration(qDuration);
+
             if (testResultsSummary.hasFailedTestResults()
                     || testResultsSummary.hasSuccessfulTestResults()) {
-
-                Long endTime = TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis());
-
-                jobWithStat.setEndTime(endTime);
-                
-                Long prDuration = TimeUnit.MILLISECONDS.toSeconds(buildResultsSummary
-                        .getProcessingDuration());
-                
-                jobWithStat.setProcessingDuration(prDuration);
-
-                Long qDuration = TimeUnit.MILLISECONDS.toSeconds(buildResultsSummary
-                        .getQueueDuration());
-                
-                jobWithStat.setQueueDuration(qDuration);
-
                 jobWithStat.setTestNumber(testResultsSummary
                         .getFailedTestCaseCount()
                         + testResultsSummary.getSuccessfulTestCaseCount()
                         + testResultsSummary.getIgnoredTestCaseCount());
-
-                jobWithStat.setFinished(true);
-                
-                LOGGER.info("Job finished : " + jobWithStat.toString());
-
-            } else {
-                jobCollector.finish();
-                LOGGER.info("Breaken job: " + jobWithStat.toString());
             }
+            
+            jobWithStat.setFinished(true);
+
+            LOGGER.info("Job finished : " + jobWithStat.toString());
+
+            // } else {
+            // jobCollector.finish();
+            // LOGGER.info("Breaken job: " + jobWithStat.toString());
+            // }
         }
 
         if (jobCollector.isFinished()) {
