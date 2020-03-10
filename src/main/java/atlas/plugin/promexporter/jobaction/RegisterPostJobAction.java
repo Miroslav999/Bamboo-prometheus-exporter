@@ -64,8 +64,11 @@ public class RegisterPostJobAction implements PostJobAction {
             atlas.plugin.promexporter.metric.Job jobWithStat = jobCollector
                     .getJobs().get(job.getName());
 
-            // if (testResultsSummary.hasFailedTestResults()
-            // || testResultsSummary.hasSuccessfulTestResults()) {
+            if (jobWithStat == null) {
+                LOGGER.info("jobWithStat is null : jobBranch=" + jobBranch
+                        + "planName=" + buildContext.getPlanName());
+                return;
+            }
 
             Long endTime = TimeUnit.MILLISECONDS.toSeconds(System
                     .currentTimeMillis());
@@ -89,7 +92,7 @@ public class RegisterPostJobAction implements PostJobAction {
                         + testResultsSummary.getSuccessfulTestCaseCount()
                         + testResultsSummary.getIgnoredTestCaseCount());
             }
-            
+
             jobWithStat.setFinished(true);
 
             LOGGER.info("Job finished : " + jobWithStat.toString());
