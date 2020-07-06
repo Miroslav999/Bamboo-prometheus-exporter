@@ -97,13 +97,10 @@ public class RegisterPostJobAction implements PostJobAction {
 
             LOGGER.info("Job finished : " + jobWithStat.toString());
 
-            // } else {
-            // jobCollector.finish();
-            // LOGGER.info("Breaken job: " + jobWithStat.toString());
-            // }
         }
 
         if (jobCollector.isFinished()) {
+            MetricCollector.clearRegressStatistic();
             collectJobStatistics(buildResultsSummary);
             jobCollector.getJobs().clear();
             jobCollector.finish();
